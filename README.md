@@ -1,7 +1,143 @@
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+修改了配置文件，来支持多入口，达到支持多个单页应用的模式。
 
+1、修改paths.js
+```js
+const glob = require('glob');
+
+//获取指定路径下的入口文件
+function getEntries(globPath){
+  const files = glob.sync(globPath);
+  let entries ={};
+  files.forEach(filePath => {
+    const split = filePath.split('/');
+    const name = split[split.length - 2];
+    if (name==='src'){//src根目录作为index
+      entries['index'] = './'+filePath;
+    }else{
+      entries[name] = './'+filePath;
+    }
+  });
+  return entries;
+}
+
+const entries = getEntries('src/**/index.js');
+```
+```
+// config after eject: we're in ./config/
+module.exports = {
+  dotenv: resolveApp('.env'),
+  appPath: resolveApp('.'),
+  appBuild: resolveApp(buildPath),
+  appPublic: resolveApp('public'),
+  appHtml: resolveApp('public/index.html'),
+  appIndexJs: resolveModule(resolveApp, 'src/index'),
+  appPackageJson: resolveApp('package.json'),
+  appSrc: resolveApp('src'),
+  appTsConfig: resolveApp('tsconfig.json'),
+  appJsConfig: resolveApp('jsconfig.json'),
+  yarnLockFile: resolveApp('yarn.lock'),
+  testsSetup: resolveModule(resolveApp, 'src/setupTests'),
+  proxySetup: resolveApp('src/setupProxy.js'),
+  appNodeModules: resolveApp('node_modules'),
+  swSrc: resolveModule(resolveApp, 'src/service-worker'),
+  publicUrlOrPath,
+  entries,
+};
+```
+
+2、修改webpack.config.js
+```
+  const entry = {}
+  
+  for(let i in paths.entries){
+    entry[i] = paths.entries[i]
+      //  isEnvDevelopment && require.resolve('react-dev-utils/webpackHotDevClient'),
+  }
+  return {
+    mode: isEnvProduction ? 'production' : isEnvDevelopment && 'development',
+    // Stop compilation early in production
+    bail: isEnvProduction,
+    devtool: isEnvProduction
+      ? shouldUseSourceMap
+        ? 'source-map'
+        : false
+      : isEnvDevelopment && 'cheap-module-source-map',
+    // These are the "entry points" to our application.
+    // This means they will be the "root" imports that are included in JS bundle.
+    entry:entry,
+```
+```
+    output: {
+       ......
+      filename: isEnvProduction
+        ? 'static/js/[name]/[name].[contenthash:8].js'
+        : isEnvDevelopment && 'static/js/[name]/[name].bundle.js',
+      // TODO: remove this when upgrading to webpack 5
+      futureEmitAssets: true,
+      // There are also additional JS chunk files if you use code splitting.
+      chunkFilename: isEnvProduction
+        ? 'static/js/[name]/[name].[contenthash:8].chunk.js'
+        : isEnvDevelopment && 'static/js/[name]/[name].chunk.js',
+       ......
+    },
+```
+```
+      // Generates an `index.html` file with the <script> injected.
+      ...Object.keys(paths.entries).map((name)=>{
+        return new HtmlWebpackPlugin(
+          Object.assign(
+            {},
+            {
+              inject: true,
+              chunks:[name],
+              template: paths.appHtml,
+              filename:name+'.html',
+            },
+            isEnvProduction
+              ? {
+                  minify: {
+                    removeComments: true,
+                    collapseWhitespace: true,
+                    removeRedundantAttributes: true,
+                    useShortDoctype: true,
+                    removeEmptyAttributes: true,
+                    removeStyleLinkTypeAttributes: true,
+                    keepClosingSlash: true,
+                    minifyJS: true,
+                    minifyCSS: true,
+                    minifyURLs: true,
+                  },
+                }
+              : undefined
+          )
+        )
+      }),
+```
+下面的最后一段注释掉，要不然会报错。
+```
+      new ManifestPlugin({
+        fileName: 'asset-manifest.json',
+        publicPath: paths.publicUrlOrPath,
+        // generate: (seed, files, entrypoints) => {
+        //   const manifestFiles = files.reduce((manifest, file) => {
+        //     manifest[file.name] = file.path;
+        //     return manifest;
+        //   }, seed);
+        //   // const entrypointFiles = entrypoints.main.filter(
+        //   const entrypointFiles = entrypoints.index.filter(
+        //     fileName => !fileName.endsWith('.map')
+        //   );
+
+        //   return {
+        //     files: manifestFiles,
+        //     entrypoints: entrypointFiles,
+        //   };
+        // },
+      }),
+```
 ## Available Scripts
 
 In the project directory, you can run:
